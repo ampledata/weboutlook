@@ -9,6 +9,8 @@ command-line option, it'll only run one full POP transaction and quit. The
 latter is useful for the "precommand" option in KMail, which you can configure
 to run this script every time you check e-mail so it starts the server in the
 background.
+
+Note that you'll have to specify WEBMAIL_SERVER in this file.
 """
 
 # Based on gmailpopd.py by follower@myrealbox.com,
@@ -38,6 +40,7 @@ from scraper import InvalidLogin, OutlookWebScraper
 __version__ = 'Python Outlook Web Access POP3 proxy version 0.0.1'
 
 TERMINATOR = '\r\n'
+WEBMAIL_SERVER = 'http://mywebmail.example.com'
 
 def quote_dots(lines):
     for line in lines:
@@ -93,7 +96,7 @@ class POPChannel(asynchat.async_chat):
             self.push('+OK Password required')
 
     def pop_PASS(self, password=''):
-        self.scraper = OutlookWebScraper('https://webmail.wpni.com', self.username, password)
+        self.scraper = OutlookWebScraper(WEBMAIL_SERVER, self.username, password)
         try:
             self.scraper.login()
         except InvalidLogin:
