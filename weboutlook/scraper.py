@@ -76,22 +76,38 @@ class InvalidLogin(Exception):
 class RetrievalError(Exception):
     pass
 
+class DandyURLopener(urllib.FancyURLopener):
+    def set_user_passwd(self, username, password):
+        self.username = username
+        self.password = password
+    
+    
+    def prompt_user_passwd(self, host='', realm=''):
+        if self.username and self.password:
+            return (self.username,self.password)
+        else:
+            super(DandyURLopener, prompt_user_passwd).prompt_user_passwd(host=host,realm=realm)
+    
+
+
 class CookieScraper(object):
     "Scraper that keeps track of getting and setting cookies."
     def __init__(self):
         self._cookies = SimpleCookie()
-
+    
+    
     def get_page(self, url, post_data=None, headers=()):
         """
         Helper method that gets the given URL, handling the sending and storing
         of cookies. Returns the requested page as a string.
         """
-        opener = urllib.URLopener()
+        opener = DandyURLopener()
+        opener.set_user_passwd(username=self.username,password=self.password)
         opener.addheader('Cookie', self._cookies.output(attrs=[], header='').strip())
         for k, v in headers:
             opener.addheader(k, v)
         try:
-            f = opener.open(url, post_data)
+            f = opener.open(fullurl=url)
         except IOError, e:
             if e[1] == 302:
                 # Got a 302 redirect, but check for cookies before redirecting.
@@ -104,6 +120,7 @@ class CookieScraper(object):
         if f.headers.dict.has_key('set-cookie'):
             self._cookies.load(f.headers.dict['set-cookie'])
         return f.read()
+    
 
 class OutlookWebScraper(CookieScraper):
     def __init__(self, domain, username, password):
@@ -112,33 +129,29 @@ class OutlookWebScraper(CookieScraper):
         self.is_logged_in = False
         self.base_href = None
         super(OutlookWebScraper, self).__init__()
-
+    
+    
     def login(self):
-        url = urlparse.urljoin(self.domain, 'exchweb/bin/auth/owaauth.dll')
-        html = self.get_page(url, urllib.urlencode({
-            'destination': urlparse.urljoin(self.domain, 'exchange'),
-            'flags': '0',
-            'username': self.username,
-            'password': self.password,
-            'SubmitCreds': 'Log On',
-            'forcedownlevel': '0',
-            'trusted': '4',
-        }))
+        destination = urlparse.urljoin(self.domain, 'exchange/')
+        url         = destination
+        html        = self.get_page(url=url)
         if 'You could not be logged on to Outlook Web Access' in html:
             raise InvalidLogin
         m = re.search(r'(?i)<BASE href="([^"]*)">', html)
         if not m:
             raise RetrievalError, "Couldn't find <base href> on page after logging in."
-        self.base_href = m.group(1)
-        self.is_logged_in = True
-
+        self.base_href      = m.group(1)
+        self.is_logged_in   = True
+    
+    
     def inbox(self):
         """
         Returns the message IDs for all messages on the first page of the
         Inbox, regardless of whether they've already been read.
         """
         return self.get_folder('Inbox')
-
+    
+    
     def get_folder(self, folder_name):
         """
         Returns the message IDs for all messages on the first page of the
@@ -150,14 +163,16 @@ class OutlookWebScraper(CookieScraper):
         html = self.get_page(url)
         message_urls = re.findall(r'(?i)NAME=MsgID value="([^"]*)"', html)
         return message_urls
-
+    
+    
     def get_message(self, msgid):
         "Returns the raw e-mail for the given message ID."
         if not self.is_logged_in: self.login()
         # Sending the "Translate=f" HTTP header tells Outlook to include
         # full e-mail headers. Figuring that out took way too long.
         return self.get_page(self.base_href + msgid + '?Cmd=body', headers=[('Translate', 'f')])
-
+    
+    
     def delete_message(self, msgid):
         "Deletes the e-mail with the given message ID."
         if not self.is_logged_in: self.login()
@@ -166,3 +181,4 @@ class OutlookWebScraper(CookieScraper):
             'Cmd': 'delete',
             'ReadForm': '1',
         }))
+    
