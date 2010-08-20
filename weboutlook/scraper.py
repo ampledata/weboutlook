@@ -17,6 +17,9 @@ and the "sample usage" section below.
 This module does no caching. Each time you retrieve something, it does a fresh
 HTTP request. It does cache your session, though, so that you only have to log
 in once.
+
+Updated by Greg Albrecht <gba@gregalbrecht.com>
+Based on http://code.google.com/p/weboutlook/ by Adrian Holovaty <holovaty@gmail.com>.
 """
 
 # Documentation / sample usage:
@@ -65,8 +68,8 @@ in once.
 import re, socket, urllib, urlparse
 from Cookie import SimpleCookie
 
-__version__ = '0.1'
-__author__ = 'Adrian Holovaty <holovaty@gmail.com>'
+__version__ = '0.1.1'
+__author__ = 'Greg Albrecht <gba@gregalbrecht.com>'
 
 socket.setdefaulttimeout(15)
 
