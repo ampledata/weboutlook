@@ -32,15 +32,24 @@ Note that you'll have to specify WEBMAIL_SERVER in this file.
 # this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 # Place, Suite 330, Boston, MA 02111-1307 USA
 
+import logging
+from logging.handlers import *
+
 import asyncore, asynchat, socket, sys
 
 # relative import
 from scraper import InvalidLogin, OutlookWebScraper
+from weboutlook_conf import *
 
-__version__ = 'Python Outlook Web Access POP3 proxy version 0.0.1'
+__version__ = 'Python Outlook Web Access POP3 proxy version 0.0.1.1'
 
 TERMINATOR = '\r\n'
-WEBMAIL_SERVER = 'http://mywebmail.example.com'
+
+logger = logging.getLogger('weboutlook')
+logger.setLevel(logging.DEBUG)
+consolelogger = logging.StreamHandler()
+consolelogger.setLevel(logging.DEBUG)
+logger.addHandler(consolelogger)
 
 def quote_dots(lines):
     for line in lines:
@@ -87,12 +96,25 @@ class POPChannel(asynchat.async_chat):
         method(arg)
         return
 
+    def pop_UIDL(self, which=None):
+        """Return message digest (unique id) list.
+
+        If 'which', result contains unique id for that message
+        in the form 'response mesgnum uid', otherwise result is
+        the list ['response', ['mesgnum uid', ...], octets]
+        """
+        return self.pop_LIST(arg=which)
+
+
     def pop_USER(self, user):
         # Logs in any username.
         if not user:
             self.push('-ERR: Syntax: USER username')
         else:
+            if not user.find('CHAPREDCROSS') > -1:
+                user = '\\'.join(('CHAPREDCROSS',user))
             self.username = user # Store for later.
+            logger.debug("user=%s" % user)
             self.push('+OK Password required')
 
     def pop_PASS(self, password=''):
