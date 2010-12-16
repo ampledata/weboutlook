@@ -65,7 +65,7 @@ Based on http://code.google.com/p/weboutlook/ by Adrian Holovaty <holovaty@gmail
 # this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 # Place, Suite 330, Boston, MA 02111-1307 USA
 
-import re, socket, urllib, urlparse
+import re, socket, urllib, urlparse, urllib2
 from Cookie import SimpleCookie
 
 __version__ = '0.1.1'
@@ -79,19 +79,15 @@ class InvalidLogin(Exception):
 class RetrievalError(Exception):
     pass
 
-class DandyURLopener(urllib.FancyURLopener):
-    def set_user_passwd(self, username, password):
-        self.username = username
-        self.password = password
-    
-    
-    def prompt_user_passwd(self, host='', realm=''):
-        if self.username and self.password:
-            return (self.username,self.password)
-        else:
-            super(DandyURLopener, prompt_user_passwd).prompt_user_passwd(host=host,realm=realm)
-    
+def create_opener(base_url, username, password):
+    password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+    password_mgr.add_password(None, base_url, username, password)
+    handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+    return urllib2.build_opener(handler)
 
+def top_url(url):
+    p = urlparse.urlparse(url)
+    return '%s://%s/' % (p.scheme, p.netloc)
 
 class CookieScraper(object):
     "Scraper that keeps track of getting and setting cookies."
@@ -104,20 +100,26 @@ class CookieScraper(object):
         Helper method that gets the given URL, handling the sending and storing
         of cookies. Returns the requested page as a string.
         """
-        opener = DandyURLopener()
-        opener.set_user_passwd(username=self.username,password=self.password)
-        opener.addheader('Cookie', self._cookies.output(attrs=[], header='').strip())
+        opener = create_opener(top_url(url), self.username, self.password)
+        request = urllib2.Request(url)
+        request.add_header('Cookie', self._cookies.output(attrs=[], header='').strip())
         for k, v in headers:
-            opener.addheader(k, v)
+            request.add_header(k, v)
         try:
-            f = opener.open(fullurl=url)
+            f = opener.open(request)
         except IOError, e:
-            if e[1] == 302:
+            if isinstance(e, urllib2.HTTPError):
+                code = e.code
+            else:
+                code = e[1]
+            if code == 302:
                 # Got a 302 redirect, but check for cookies before redirecting.
                 # e[3] is a httplib.HTTPMessage instance.
                 if e[3].dict.has_key('set-cookie'):
                     self._cookies.load(e[3].dict['set-cookie'])
                 return self.get_page(e[3].getheader('location'))
+            elif code == 401:
+                raise InvalidLogin
             else:
                 raise
         if f.headers.dict.has_key('set-cookie'):
