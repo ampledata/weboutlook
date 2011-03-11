@@ -71,6 +71,12 @@ from Cookie import SimpleCookie
 __version__ = '0.1.1'
 __author__ = 'Greg Albrecht <gba@gregalbrecht.com>'
 
+logger = logging.getLogger('weboutlook')
+logger.setLevel(logging.INFO)
+consolelogger = logging.StreamHandler()
+consolelogger.setLevel(logging.INFO)
+logger.addHandler(consolelogger)
+
 socket.setdefaulttimeout(15)
 
 class InvalidLogin(Exception):
@@ -80,18 +86,21 @@ class RetrievalError(Exception):
     pass
 
 def create_opener(base_url, username, password):
+    logger.debug(locals())
     password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
     password_mgr.add_password(None, base_url, username, password)
     handler = urllib2.HTTPBasicAuthHandler(password_mgr)
     return urllib2.build_opener(handler)
 
 def top_url(url):
+    logger.debug(locals())
     p = urlparse.urlparse(url)
     return '%s://%s/' % (p.scheme, p.netloc)
 
 class CookieScraper(object):
     "Scraper that keeps track of getting and setting cookies."
     def __init__(self):
+        logger.debug(locals())
         self._cookies = SimpleCookie()
     
     
@@ -100,6 +109,7 @@ class CookieScraper(object):
         Helper method that gets the given URL, handling the sending and storing
         of cookies. Returns the requested page as a string.
         """
+        logger.debug(locals())
         opener = create_opener(top_url(url), self.username, self.password)
         request = urllib2.Request(url)
         request.add_header('Cookie', self._cookies.output(attrs=[], header='').strip())
@@ -129,6 +139,7 @@ class CookieScraper(object):
 
 class OutlookWebScraper(CookieScraper):
     def __init__(self, domain, username, password):
+        logger.debug(locals())
         self.domain = domain
         self.username, self.password = username, password
         self.is_logged_in = False
@@ -137,6 +148,7 @@ class OutlookWebScraper(CookieScraper):
     
     
     def login(self):
+        logger.debug(locals())
         destination = urlparse.urljoin(self.domain, 'exchange/')
         url         = destination
         html        = self.get_page(url=url)
@@ -154,6 +166,7 @@ class OutlookWebScraper(CookieScraper):
         Returns the message IDs for all messages on the first page of the
         Inbox, regardless of whether they've already been read.
         """
+        logger.debug(locals())
         return self.get_folder('Inbox')
     
     
@@ -163,6 +176,7 @@ class OutlookWebScraper(CookieScraper):
         folder with the given name, regardless of whether the messages have
         already been read. The folder name is case insensitive.
         """
+        logger.debug(locals())
         if not self.is_logged_in: self.login()
         url = self.base_href + urllib.quote(folder_name) + '/?Cmd=contents'
         html = self.get_page(url)
@@ -172,6 +186,7 @@ class OutlookWebScraper(CookieScraper):
     
     def get_message(self, msgid):
         "Returns the raw e-mail for the given message ID."
+        logger.debug(locals())
         if not self.is_logged_in: self.login()
         # Sending the "Translate=f" HTTP header tells Outlook to include
         # full e-mail headers. Figuring that out took way too long.
@@ -180,6 +195,7 @@ class OutlookWebScraper(CookieScraper):
     
     def delete_message(self, msgid):
         "Deletes the e-mail with the given message ID."
+        logger.debug(locals())
         if not self.is_logged_in: self.login()
         return self.get_page(self.base_href + msgid, urllib.urlencode({
             'MsgId': msgid,
