@@ -67,6 +67,8 @@ Based on http://code.google.com/p/weboutlook/ by Adrian Holovaty <holovaty@gmail
 
 import re, socket, urllib, urlparse, urllib2
 from Cookie import SimpleCookie
+import logging
+from logging.handlers import *
 
 __version__ = '0.1.1'
 __author__ = 'Greg Albrecht <gba@gregalbrecht.com>'
