@@ -41,14 +41,14 @@ import asyncore, asynchat, socket, sys
 from scraper import InvalidLogin, OutlookWebScraper
 from weboutlook_conf import *
 
-__version__ = 'Python Outlook Web Access POP3 proxy version 0.0.1.1'
+__version__ = 'Python Outlook Web Access POP3 proxy version 0.0.1.2'
 
 TERMINATOR = '\r\n'
 
 logger = logging.getLogger('weboutlook')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 consolelogger = logging.StreamHandler()
-consolelogger.setLevel(logging.DEBUG)
+consolelogger.setLevel(logging.INFO)
 logger.addHandler(consolelogger)
 
 def quote_dots(lines):
@@ -59,6 +59,7 @@ def quote_dots(lines):
 
 class POPChannel(asynchat.async_chat):
     def __init__(self, conn, quit_after_one):
+        logger.debug(locals())
         self.quit_after_one = quit_after_one
         asynchat.async_chat.__init__(self, conn)
         self.__line = []
@@ -68,14 +69,17 @@ class POPChannel(asynchat.async_chat):
 
     # Overrides base class for convenience
     def push(self, msg):
+        logger.debug(locals())
         asynchat.async_chat.push(self, msg + TERMINATOR)
 
     # Implementation of base class abstract method
     def collect_incoming_data(self, data):
+        logger.debug(locals())
         self.__line.append(data)
 
     # Implementation of base class abstract method
     def found_terminator(self):
+        logger.debug(locals())
         line = ''.join(self.__line)
         self.__line = []
         if not line:
@@ -97,6 +101,7 @@ class POPChannel(asynchat.async_chat):
         return
 
     def pop_UIDL(self, which=None):
+        logger.debug(locals())
         """Return message digest (unique id) list.
 
         If 'which', result contains unique id for that message
@@ -107,17 +112,17 @@ class POPChannel(asynchat.async_chat):
 
 
     def pop_USER(self, user):
+        logger.debug(locals())
         # Logs in any username.
         if not user:
             self.push('-ERR: Syntax: USER username')
         else:
-            if not user.find('CHAPREDCROSS') > -1:
-                user = '\\'.join(('CHAPREDCROSS',user))
-            self.username = user # Store for later.
-            logger.debug("user=%s" % user)
+            self.username = ''.join((USER_PREFIX,user)) # Store for later.
+            logger.info("username=%s" % self.username)
             self.push('+OK Password required')
 
     def pop_PASS(self, password=''):
+        logger.debug(locals())
         self.scraper = OutlookWebScraper(WEBMAIL_SERVER, self.username, password)
         try:
             self.scraper.login()
@@ -129,10 +134,12 @@ class POPChannel(asynchat.async_chat):
             self.msg_cache = [self.scraper.get_message(msg_id) for msg_id in self.inbox_cache]
 
     def pop_STAT(self, arg):
+        logger.debug(locals())
         dropbox_size = sum([len(msg) for msg in self.msg_cache])
         self.push('+OK %d %d' % (len(self.inbox_cache), dropbox_size))
 
     def pop_LIST(self, arg):
+        logger.debug(locals())
         if not arg:
             num_messages = len(self.inbox_cache)
             self.push('+OK')
@@ -144,6 +151,7 @@ class POPChannel(asynchat.async_chat):
             raise NotImplementedError
 
     def pop_RETR(self, arg):
+        logger.debug(locals())
         if not arg:
             self.push('-ERR: Syntax: RETR msg')
         else:
@@ -163,6 +171,7 @@ class POPChannel(asynchat.async_chat):
             self.scraper.delete_message(msg_id)
 
     def pop_QUIT(self, arg):
+        logger.debug(locals())
         self.push('+OK Goodbye')
         self.close_when_done()
         if self.quit_after_one:
@@ -171,6 +180,7 @@ class POPChannel(asynchat.async_chat):
             raise SystemExit
 
     def handle_error(self):
+        logger.debug(locals())
         if self.quit_after_one:
             sys.exit(0) # Exit.
         else:
@@ -184,6 +194,7 @@ class POP3Proxy(asyncore.dispatcher):
         quit_after_one is a boolean specifying whether the server should quit
         after serving one session.
         """
+        logger.debug(locals())
         self.quit_after_one = quit_after_one
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -193,6 +204,7 @@ class POP3Proxy(asyncore.dispatcher):
         self.listen(5)
 
     def handle_accept(self):
+        logger.debug(locals())
         conn, addr = self.accept()
         channel = POPChannel(conn, self.quit_after_one)
 
